@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GenSpike - Algoritmo Genético para Evolución del Gen Spike</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .card-header {
+            background-color: #007bff;
+            color: white;
+        }
+        .sequence-display {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            word-break: break-all;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .mutation-highlight {
+            background-color: #ffeb3b;
+            padding: 2px;
+            border-radius: 3px;
+        }
+        .loading {
+            display: none;
+        }
+        .chart-container {
+            position: relative;
+            height: 400px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <h1 class="text-center my-4">GenSpike - Algoritmo Genético para Evolución del Gen Spike</h1>
+            </div>
+        </div>
+
+        <!-- Panel de Control -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Panel de Control</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label for="populationSize" class="form-label">Tamaño de Población:</label>
+                                <input type="number" class="form-control" id="populationSize" value="50" min="10" max="200">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="generations" class="form-label">Generaciones:</label>
+                                <input type="number" class="form-control" id="generations" value="20" min="5" max="100">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="mutationRate" class="form-label">Tasa de Mutación:</label>
+                                <input type="number" class="form-control" id="mutationRate" value="0.01" min="0.001" max="0.1" step="0.001">
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end">
+                                <button class="btn btn-primary me-2" onclick="initializePopulation()">Inicializar Población</button>
+                                <button class="btn btn-success me-2" onclick="runEvolution()">Ejecutar Evolución</button>
+                                <button class="btn btn-warning" onclick="resetPopulation()">Reset</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Estado de la Población -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Estado de la Población</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="populationStatus">
+                            <p>No hay población inicializada.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gráfico de Evolución -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Evolución del Fitness</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="fitnessChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resultados del Mejor Individuo -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Análisis del Mejor Individuo</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="bestIndividualAnalysis">
+                            <p>Ejecute el algoritmo genético para ver los resultados.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Datos Originales -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Gen Spike Original</h5>
+                    </div>
+                    <div class="card-body">
+                        <button class="btn btn-info mb-3" onclick="loadSpikeGene()">Cargar Gen Spike</button>
+                        <div id="spikeGeneData">
+                            <p>Haga clic en "Cargar Gen Spike" para obtener los datos.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Proteína Spike Original</h5>
+                    </div>
+                    <div class="card-body">
+                        <button class="btn btn-info mb-3" onclick="loadOriginalProtein()">Cargar Proteína Original</button>
+                        <div id="originalProteinData">
+                            <p>Haga clic en "Cargar Proteína Original" para obtener los datos.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div class="loading position-fixed top-50 start-50 translate-middle" id="loadingSpinner">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let fitnessChart = null;
+
+        // Funciones de utilidad
+        function showLoading() {
+            document.getElementById('loadingSpinner').style.display = 'block';
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingSpinner').style.display = 'none';
+        }
+
+        function showAlert(message, type = 'info') {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.body.insertBefore(alertDiv, document.body.firstChild);
+            
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 5000);
+        }
+
+        // Cargar gen Spike
+        async function loadSpikeGene() {
+            showLoading();
+            try {
+                const response = await fetch('/api/extract-spike-gene/');
+                const result = await response.json();
+                
+                if (result.success) {
+                    const data = result.data;
+                    document.getElementById('spikeGeneData').innerHTML = `
+                        <p><strong>Longitud:</strong> ${data.length} nucleótidos</p>
+                        <p><strong>Posición:</strong> ${data.start_position} - ${data.end_position}</p>
+                        <p><strong>Primeros 90 nucleótidos:</strong></p>
+                        <div class="sequence-display">${data.first_90}</div>
+                        <p><strong>Últimos 90 nucleótidos:</strong></p>
+                        <div class="sequence-display">${data.last_90}</div>
+                    `;
+                    showAlert('Gen Spike cargado exitosamente', 'success');
+                } else {
+                    showAlert('Error al cargar el gen Spike: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Error de conexión: ' + error.message, 'danger');
+            }
+            hideLoading();
+        }
+
+        // Cargar proteína original
+        async function loadOriginalProtein() {
+            showLoading();
+            try {
+                const response = await fetch('/api/get-original-protein/');
+                const result = await response.json();
+                
+                if (result.success) {
+                    const data = result.data;
+                    document.getElementById('originalProteinData').innerHTML = `
+                        <p><strong>ID:</strong> ${data.id}</p>
+                        <p><strong>Longitud:</strong> ${data.length} aminoácidos</p>
+                        <p><strong>Descripción:</strong> ${data.description}</p>
+                        <p><strong>Secuencia (primeros 100 aa):</strong></p>
+                        <div class="sequence-display">${data.sequence.substring(0, 100)}...</div>
+                    `;
+                    showAlert('Proteína original cargada exitosamente', 'success');
+                } else {
+                    showAlert('Error al cargar la proteína: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Error de conexión: ' + error.message, 'danger');
+            }
+            hideLoading();
+        }
+
+        // Inicializar población
+        async function initializePopulation() {
+            showLoading();
+            try {
+                const populationSize = document.getElementById('populationSize').value;
+                
+                const response = await fetch('/api/initialize-population/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        population_size: parseInt(populationSize)
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('Población inicializada exitosamente', 'success');
+                    updatePopulationStatus();
+                } else {
+                    showAlert('Error al inicializar población: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Error de conexión: ' + error.message, 'danger');
+            }
+            hideLoading();
+        }
+
+        // Ejecutar evolución
+        async function runEvolution() {
+            showLoading();
+            try {
+                const populationSize = document.getElementById('populationSize').value;
+                const generations = document.getElementById('generations').value;
+                const mutationRate = document.getElementById('mutationRate').value;
+                
+                const response = await fetch('/api/run-evolution/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        population_size: parseInt(populationSize),
+                        generations: parseInt(generations),
+                        mutation_rate: parseFloat(mutationRate)
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('Evolución completada exitosamente', 'success');
+                    updateFitnessChart(result.data.generation_history);
+                    analyzeBestIndividual();
+                    updatePopulationStatus();
+                } else {
+                    showAlert('Error durante la evolución: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Error de conexión: ' + error.message, 'danger');
+            }
+            hideLoading();
+        }
+
+        // Analizar mejor individuo
+        async function analyzeBestIndividual() {
+            try {
+                const response = await fetch('/api/analyze-best-individual/');
+                const result = await response.json();
+                
+                if (result.success) {
+                    const analysis = result.data;
+                    let mutationsHtml = '';
+                    
+                    if (analysis.mutations && analysis.mutations.length > 0) {
+                        mutationsHtml = '<h6>Mutaciones encontradas:</h6><ul>';
+                        analysis.detailed_mutations.forEach(mutation => {
+                            if (mutation.position !== 'length') {
+                                mutationsHtml += `<li>Posición ${mutation.position}: ${mutation.original_aa} → ${mutation.alternative_aa}`;
+                                
+                                
+                                if (mutation.description && mutation.description !== 'no') {
+                                    mutationsHtml += `<br><em>Descripción:</em> ${mutation.description}`;
+                                }
+
+                                mutationsHtml += `</li>`;
+                            }
+                        });
+                        mutationsHtml += '</ul>';
+                    }
+                    
+                    document.getElementById('bestIndividualAnalysis').innerHTML = `
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Comparación de Secuencias:</h6>
+                                <p><strong>Longitud original:</strong> ${analysis.sequence_comparison.original_length}</p>
+                                <p><strong>Longitud final:</strong> ${analysis.sequence_comparison.final_length}</p>
+                                <p><strong>Cambios nucleotídicos:</strong> ${analysis.sequence_comparison.nucleotide_changes}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Comparación de Proteínas:</h6>
+                                <p><strong>Longitud original:</strong> ${analysis.protein_comparison.original_length}</p>
+                                <p><strong>Longitud final:</strong> ${analysis.protein_comparison.final_length}</p>
+                                <p><strong>Cambios aminoácidos:</strong> ${analysis.protein_comparison.amino_acid_changes}</p>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-md-12">
+                                <h6>Fitness Breakdown:</h6>
+                                <p><strong>Fitness Total:</strong> ${analysis.fitness_breakdown.total_fitness.toFixed(4)}</p>
+                                <p><strong>Fitness Nucleotídico:</strong> ${analysis.fitness_breakdown.nucleotide_fitness.toFixed(4)}</p>
+                                <p><strong>Fitness Funcional:</strong> ${analysis.fitness_breakdown.functional_fitness.toFixed(4)}</p>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-md-12">
+                                <h6>Análisis de Mutaciones:</h6>
+                                <p><strong>Tasa de Mutación:</strong> ${analysis.mutation_analysis.tasa_mutacion.toExponential(2)} mutaciones/base/generación</p>
+                                <p><strong>Ratio pN/pS:</strong> ${analysis.mutation_analysis.pN_pS_ratio.toFixed(2)}</p>
+                                <h6>Espectro de Mutaciones:</h6>
+                                <pre>${JSON.stringify(analysis.mutation_analysis.espectro_mutaciones, null, 2)}</pre>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-md-12">
+                                ${mutationsHtml}
+                            </div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error al analizar mejor individuo:', error);
+            }
+        }
+
+        // Actualizar estado de población
+        async function updatePopulationStatus() {
+            try {
+                const response = await fetch('/api/get-population-status/');
+                const result = await response.json();
+                
+                if (result.success) {
+                    const status = result.data;
+                    if (status.population_exists) {
+                        document.getElementById('populationStatus').innerHTML = `
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <p><strong>Tamaño de Población:</strong> ${status.population_size}</p>
+                                </div>
+                                <div class="col-md-3">
+                                    <p><strong>Generaciones:</strong> ${status.generations_run}</p>
+                                </div>
+                                <div class="col-md-3">
+                                    <p><strong>Mejor Fitness:</strong> ${status.best_fitness.toFixed(4)}</p>
+                                </div>
+                                <div class="col-md-3">
+                                    <p><strong>Fitness Promedio:</strong> ${status.average_fitness.toFixed(4)}</p>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        document.getElementById('populationStatus').innerHTML = '<p>No hay población inicializada.</p>';
+                    }
+                }
+            } catch (error) {
+                console.error('Error al obtener estado de población:', error);
+            }
+        }
+
+        // Resetear población
+        async function resetPopulation() {
+            showLoading();
+            try {
+                const response = await fetch('/api/reset-population/', {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('Población reseteada exitosamente', 'success');
+                    updatePopulationStatus();
+                    document.getElementById('bestIndividualAnalysis').innerHTML = '<p>Ejecute el algoritmo genético para ver los resultados.</p>';
+                    if (fitnessChart) {
+                        fitnessChart.destroy();
+                        fitnessChart = null;
+                    }
+                } else {
+                    showAlert('Error al resetear población: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Error de conexión: ' + error.message, 'danger');
+            }
+            hideLoading();
+        }
+
+        // Actualizar gráfico de fitness
+        function updateFitnessChart(generationHistory) {
+            const ctx = document.getElementById('fitnessChart').getContext('2d');
+            
+            if (fitnessChart) {
+                fitnessChart.destroy();
+            }
+            
+            const generations = generationHistory.map(g => g.generation);
+            const bestFitness = generationHistory.map(g => g.best_fitness);
+            const avgFitness = generationHistory.map(g => g.average_fitness);
+            
+            fitnessChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: generations,
+                    datasets: [{
+                        label: 'Mejor Fitness',
+                        data: bestFitness,
+                        borderColor: 'rgb(75, 192, 192)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        tension: 0.1
+                    }, {
+                        label: 'Fitness Promedio',
+                        data: avgFitness,
+                        borderColor: 'rgb(255, 99, 132)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 1
+                        }
+                    }
+                }
+            });
+        }
+
+        // Cargar estado inicial al cargar la página
+        document.addEventListener('DOMContentLoaded', function() {
+            updatePopulationStatus();
+        });
+    </script>
+</body>
+</html>
+
